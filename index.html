@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Marks</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @layer utilities {
+      .glow {
+        text-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6);
+      }
+      .popup-hover:hover .popup-content {
+        display: block;
+      }
+      .popup-content {
+        display: none;
+        position: absolute;
+        top: 0;
+        right: 100%; /* Left popup */
+        margin-right: 10px;
+        background-color: rgba(0, 0, 0, 0.7); /* Dark background for popup */
+        padding: 10px;
+        color: white;
+        border-radius: 8px;
+        width: 250px;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+        z-index: 10;
+        transition: opacity 0.3s ease-in-out;
+      }
+    }
+
+    /* Flexbox layout */
+    .content-wrapper {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .result-container {
+      width: 55%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+    .chart-container {
+      width: 40%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* Keep the search box at the top, fixed position */
+    #search {
+      margin-top: 20px;
+      position: relative;
+    }
+
+    /* Footer styling to keep it at the bottom */
+    .footer {
+      margin-top: auto;
+    }
+
+    /* Prevent content shift */
+    .fixed-layout {
+      position: relative;
+    }
+
+    /* Elegant colors */
+    body {
+      background: #111111; /* Dark background */
+      color: #f1f1f1; /* Light text for contrast */
+    }
+    h1, h3 {
+      color: #e53e3e; /* Red color for headings */
+    }
+    p {
+      color: #d1d5db; /* Light gray for paragraph text */
+    }
+    .text-red-400 {
+      color: #f87171; /* Lighter red for accents */
+    }
+    .bg-black {
+      background-color: #1a1a1a;
+    }
+    .bg-red-900 {
+      background-color: #e53e3e;
+    }
+    .bg-gradient-to-br {
+      background: linear-gradient(135deg, #1E3A8A, #0c2d4d);
+    }
+
+    /* Button styles */
+    .btn {
+      background-color: #e53e3e; /* Red */
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 16px;
+      transition: all 0.3s ease;
+    }
+    .btn:hover {
+      background-color: #c53030; /* Darker red on hover */
+      cursor: pointer;
+    }
+
+    .input-box {
+      background-color: #333333; /* Darker gray for input */
+      color: white;
+      border: 2px solid #e53e3e;
+      border-radius: 8px;
+      padding: 10px 15px;
+      width: 70%;
+      font-size: 16px;
+      transition: border-color 0.3s;
+    }
+    .input-box:focus {
+      border-color: #c53030;
+      outline: none;
+    }
+  </style>
+</head>
+<body class="font-sans flex flex-col min-h-screen">
+
+  <!-- Hero Section with the title at the top -->
+  <section id="hero" class="h-auto flex flex-col items-center justify-start text-center bg-gradient-to-br from-black via-red-900 to-black">
+    <h1 class="text-3xl md:text-5xl font-extrabold text-white glow mt-2">
+      Marks Analizing System
+    </h1>
+    <p class="mt-2 text-xl md:text-2xl text-gray-200">
+      Enter your email to view your marks.
+    </p>
+  </section>
+
+  <!-- Search Section, now immediately below the description text -->
+  <section id="search" class="py-5 bg-black w-full flex justify-center items-center mt-5">
+    <div class="flex flex-col items-center w-full">
+      <div class="flex justify-center w-full mb-8">
+        <input id="emailInput" type="email" placeholder="Enter your email" class="input-box" required>
+        <button onclick="fetchStudentMarks()" class="btn ml-4">
+          Search
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Content wrapper with result section and chart container side by side -->
+  <div class="content-wrapper fixed-layout">
+    <!-- Chart Container -->
+    <div class="chart-container">
+      <canvas id="marksChart" style="height: 100%; width: 100%;"></canvas>
+    </div>
+
+    <!-- Marks Results Container -->
+    <div id="result" class="result-container text-center text-white hidden">
+      <h3 class="text-2xl font-bold">Marks Details</h3>
+      <div id="marksResults" class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div> <!-- Displaying Marks for All Sheets -->
+    </div>
+  </div>
+
+  <div id="errorMessage" class="mt-6 text-center text-red-500 hidden">
+    <p>No marks found for this email.</p>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer bg-black py-6 mt-auto">
+    <div class="container mx-auto text-center">
+      <p class="text-white">© 2024 Student Marks Portal. All Rights Reserved.</p>
+    </div>
+  </footer>
+
+  <script>
+    // Function to fetch student marks using the entered email
+    async function fetchStudentMarks() {
+      const email = document.getElementById('emailInput').value;
+
+      if (!email) {
+        alert("Please enter a valid email.");
+        return;
+      }
+
+      // Show loading message or hide previous results
+      document.getElementById('result').classList.add('hidden');
+      document.getElementById('errorMessage').classList.add('hidden');
+      
+      // Send the email to the Google Apps Script Web App
+      try {
+        const response = await fetch('https://script.google.com/macros/s/AKfycbxIpcif30D7jPQjTlWuHksgVumSTKJ9mUoxteYCaR8RtLNOo5U2mNAKhEfsjr0Yrpl0cQ/exec', {
+          method: 'POST',
+          body: new URLSearchParams({ email: email }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Show the student marks for each paper (all sheets)
+          const marksResults = document.getElementById('marksResults');
+          marksResults.innerHTML = ''; // Clear previous results
+
+          data.marks.forEach((subject) => {
+            const subjectDiv = document.createElement('div');
+            subjectDiv.classList.add('bg-black', 'p-4', 'rounded-lg', 'border', 'border-red-600', 'relative', 'popup-hover');
+            subjectDiv.innerHTML = `
+              <h4 class="text-xl font-semibold text-red-400">${subject.sheetName}</h4>
+              <div class="popup-content">
+                <p><strong>MCQ Marks:</strong> ${subject.mcq}</p>
+                <p><strong>Essay Marks:</strong> ${subject.essay}</p>
+                <p><strong>Percentage:</strong> ${subject.percentage}%</p>
+                <p><strong>Rank:</strong> ${subject.rank}</p>
+              </div>
+            `;
+            marksResults.appendChild(subjectDiv);
+          });
+
+          // Display the result section
+          document.getElementById('result').classList.remove('hidden');
+
+          // Set up the line chart for marks
+          setupLineChart(data.marks);
+        } else {
+          // If no data is found, show error message
+          document.getElementById('errorMessage').classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        alert("An error occurred while fetching the marks. Please try again later.");
+      }
+    }
+
+    // Function to set up the line chart
+    function setupLineChart(marks) {
+      const labels = marks.map(subject => subject.sheetName);
+      const percentages = marks.map(subject => subject.percentage);
+
+      const ctx = document.getElementById('marksChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'line', // Changed from 'bar' to 'line' for line chart
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Percentage (%)',
+            data: percentages,
+            borderColor: '#E53E3E', // Red for chart line
+            backgroundColor: 'rgba(229, 62, 62, 0.2)', // Light red
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4, // Smooth curves for line chart
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+            }
+          }
+        }
+      });
+    }
+  </script>
+
+</body>
+</html>
